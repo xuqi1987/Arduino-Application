@@ -35,8 +35,11 @@
 #include <ESP8266WebServer.h>
 
 /* Set these to your desired credentials. */
-const char *ssid = "ESPap";
-const char *password = "12345678";
+#define AP_SSID "ESPap"
+#define AP_PASSWORD "12345678"
+
+char html_response[256] = {0};
+String strScanList[20];
 
 ESP8266WebServer server(80);
 
@@ -44,23 +47,65 @@ ESP8266WebServer server(80);
  * connected to this access point to see it.
  */
 void handleRoot() {
-	server.send(200, "text/html", "<h1>You are connected</h1>");
+
+	server.send(200, "text/html", html_response);
 }
 
+void setupScanNetworks()
+{
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+  
+  memset(html_response, 0x00,256);
+  
+  int n = WiFi.scanNetworks();
+  Serial.println("scan done");
+  if (n == 0)
+  {
+    Serial.println("no networks found");
+     strcpy(html_response,"no networks found");
+  }
+  else
+  {
+    Serial.print(n);
+    Serial.println(" networks found");
+    
+     strcat(html_response,"<ul>");
+    for (int i = 0; i < n; ++i)
+    {
+      strcat(html_response,"<li>");
+      // Print SSID and RSSI for each network found
+      strcat(html_response,WiFi.SSID(i).c_str());
+      delay(10);
+      strcat(html_response,"</li>");
+    }
+    strcat(html_response,"</ul>");
+  }
+  Serial.println("");
+}
+
+void setupAp()
+{
+    Serial.println();
+  Serial.print("Configuring access point...");
+  /* You can remove the password parameter if you want the AP to be open. */
+  WiFi.softAP(AP_SSID, AP_PASSWORD);
+
+  IPAddress myIP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(myIP);
+  server.on("/", handleRoot);
+  server.begin();
+  Serial.println("HTTP server started");
+}
 void setup() {
 	delay(1000);
 	Serial.begin(115200);
-	Serial.println();
-	Serial.print("Configuring access point...");
-	/* You can remove the password parameter if you want the AP to be open. */
-	WiFi.softAP(ssid, password);
-
-	IPAddress myIP = WiFi.softAPIP();
-	Serial.print("AP IP address: ");
-	Serial.println(myIP);
-	server.on("/", handleRoot);
-	server.begin();
-	Serial.println("HTTP server started");
+  setupScanNetworks();
+  delay(5000);
+  setupAp();
 }
 
 void loop() {
