@@ -24,11 +24,17 @@ int RBPin=7;
 
 int LTrigPin=14;
 int LEchoPin=15;
-int RTrigPin=16;
-int REchoPin=17;
+int RTrigPin=18;
+int REchoPin=19;
 
 int LStepPin=8;
 int RStepPin=12;
+
+int MAX_DIS = 15;
+
+
+unsigned char LeftSpeed = 255;
+unsigned char RightSpeed = 255;
 
 // 左轮前
 #define LF digitalWrite(LFPin, HIGH);\
@@ -61,6 +67,7 @@ long checkDistance(int trig,int echo)
    digitalWrite(trig, LOW);
    pinMode(echo, INPUT);
    cm  = pulseIn(echo, HIGH) / 29 / 2;
+   
    return cm;
 }
 
@@ -81,6 +88,12 @@ void setup() {
 
   pinMode(LStepPin, INPUT);
   pinMode(RStepPin, INPUT);
+
+  //setStep(50,100);
+  
+  //LF
+  
+  //RF
 }
 
 
@@ -88,6 +101,10 @@ void checkDistanceTask()
 {
    LeftDistance = checkDistance(LTrigPin,LEchoPin);
    RightDistance = checkDistance(RTrigPin,REchoPin);
+   Serial.print("LeftDis:");
+   Serial.println(LeftDistance);
+   Serial.print("RightDis:");
+   Serial.println(RightDistance);
 }
 
 void setStep(int left_step,int right_step)
@@ -100,6 +117,8 @@ void checkStep()
 {
   static int LeftOn = 0;
   static int RightOn = 0;
+
+  
   int new_Left = digitalRead(LStepPin);
   int new_Right = digitalRead(RStepPin);
   
@@ -109,6 +128,8 @@ void checkStep()
     if (new_Left != LeftOn) 
     {
       LeftCount--;
+      Serial.print("LeftCount:");
+      Serial.println(LeftCount);
       if (LeftCount <= 0)  LS
     }
   }
@@ -118,11 +139,15 @@ void checkStep()
     if (new_Right != RightOn) 
     {
       RightCount--;
+      Serial.print("RightCount:");
+      Serial.println(RightCount);
       if (RightCount <= 0) RS
     }
 
   }
-
+  
+  LeftOn = new_Left;
+  RightOn = new_Right;
 }
 
 // speed : 0-255
@@ -132,8 +157,14 @@ void LFSpeed(unsigned char speed)
   {
     LF
   }
-  analogWrite(LFPin, (int)speed);
-  digitalWrite(LBPin, LOW); 
+  else
+  {
+      analogWrite(LFPin, (int)speed);
+      digitalWrite(LBPin, LOW); 
+  }
+
+  LeftSpeed = speed;
+
 }
 
 // speed : 0-255
@@ -148,11 +179,50 @@ void RFSpeed(unsigned char speed)
     analogWrite(RFPin, (int)speed);
     digitalWrite(RBPin, LOW);
   }
-  
+  RightSpeed = speed;
 }
 
 void loop() {
+  delay(1000);
+  checkDistanceTask();
+  
+ /* 
+  if (LeftDistance < MAX_DIS && RightDistance < MAX_DIS)
+  {
+    RB
+    LB
+    return;
+  }
+  if (LeftDistance > MAX_DIS && RightDistance > MAX_DIS)
+  {
+      if (RightDistance < LeftDistance)
+      {
+         RF
+         LS
+         return;
+      }
+      else
+      {
+        RS
+        LF
+        return;
+      }
+  }
+  if (LeftDistance > MAX_DIS && RightDistance < MAX_DIS)
+  {
+    RS
+    LB
+    return;
+  }
+  if (LeftDistance < MAX_DIS && RightDistance > MAX_DIS)
+  {
+    LS
+    RB
+    return;
+  }
 
+  */
+  
 
 }
 
