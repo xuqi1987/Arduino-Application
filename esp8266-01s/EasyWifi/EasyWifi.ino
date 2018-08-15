@@ -25,21 +25,20 @@ enum MODE {
 #define SSID_ADDR 1 
 #define PWD_ADDR  32
 #define DEV_NAME_ADDR  64
+#define SER_NAME_ADDR  96
 
-#define _SSID "ESPap"
+#define AP_SSID "ESPap"
 #define _PASSWORD "12345678"
-#define _MQTT_SERVER "devlot.club"
-
+#define _MQTT_SERVER "lot-xu.top"
 
 #define _ssid  "TP-LINK_xuqi"
-
 #define _password  "xgm10503"
 
 AP_INFO ap_list[MAX_AP_NUM];
 uint8_t g_ApListNum = 0;
-long lastMsg = 0;
+
 char msg[50];
-int value = 0;
+
 byte g_mode = 0;
 String outTopic = "out/";
 String inTopic = "in/";
@@ -94,7 +93,7 @@ void switchMode(enum MODE mode)
   EEPROM.end();
 }
 
-void writeSSID(String strSsid,String strPwd,String strClient)
+void writeSSID(String strSsid,String strPwd,String strClient,String strServer)
 {
   EEPROM.begin(512);
   Serial.print("writeSSID SSID:");
@@ -105,22 +104,27 @@ void writeSSID(String strSsid,String strPwd,String strClient)
 
   Serial.print("writeSSID Client:");
   Serial.println(strClient.c_str());
+
+  Serial.print("writeSSID Server:");
+  Serial.println(strServer.c_str());
   
   for (uint8_t i =0; i <30; i++)
   {
     EEPROM.write(SSID_ADDR + i,strSsid.charAt(i));
     EEPROM.write(PWD_ADDR + i,strPwd.charAt(i));
     EEPROM.write(DEV_NAME_ADDR + i,strClient.charAt(i));
+    EEPROM.write(SER_NAME_ADDR + i,strServer.charAt(i));
    
   }
   EEPROM.write(SSID_ADDR + 30,'\0');
   EEPROM.write(PWD_ADDR +30,'\0');
   EEPROM.write(DEV_NAME_ADDR +30,'\0');
+  EEPROM.write(SER_NAME_ADDR +30,'\0');
   EEPROM.commit();
   
 }
 
-void readSSID(String &strSsid,String &strPwd,String &strClient)
+void readSSID(String &strSsid,String &strPwd,String &strClient,String &strServer)
 {
   EEPROM.begin(512);
 
@@ -129,6 +133,7 @@ void readSSID(String &strSsid,String &strPwd,String &strClient)
     strSsid +=(char)EEPROM.read(SSID_ADDR+i);
     strPwd += (char)EEPROM.read(PWD_ADDR+i);
     strClient += (char)EEPROM.read(DEV_NAME_ADDR+i);
+    strServer += (char)EEPROM.read(SER_NAME_ADDR+i);
   }
   Serial.print("readSSID SSID:");
   Serial.println(strSsid);
@@ -136,8 +141,11 @@ void readSSID(String &strSsid,String &strPwd,String &strClient)
   Serial.print("readSSID PWD:");
   Serial.println(strPwd);
 
-  Serial.print("readSSID PWD:");
+  Serial.print("readSSID Client:");
   Serial.println(strClient);
+
+  Serial.print("readSSID Server:");
+  Serial.println(strServer);
   EEPROM.end();
 }
 
@@ -205,10 +213,11 @@ void handleNotFound(){
   
 }
 
+
 void handleAp()
 {
   String apName;
-  String message = "<h2>Step2:</h2>Please Input password:\n";
+  String message = "<h2>Step2:</h2>Please Input password:</br><form action='saveconf'><table><tr>";
   for (uint8_t i=0; i<server.args(); i++){
     if (server.argName(i) == "ap")
     {
@@ -216,10 +225,13 @@ void handleAp()
     }
   }
 
-  message += "<form action='saveconf'>SSID:<input type='text' name='ssid' value='";
+  message += "<tr><td>SSID:</td><td><input type='text' name='ssid' value='";
   message += apName;
-  message += "'></br>PWD:";
-  message += "<input type='text' name='password' value=''></br>Client:<input type='text' name='clientname' value='Dev1'></br><input type='submit' value='Submit'></form>";
+  message += "'></td></tr>";
+  message += "<tr><td>PWD:</td><td><input type='text' name='password' value=''></td></tr>";
+  message += "<tr><td>DevName:</td><td><input type='text' name='clientname' value='Dev1'></td></tr>";
+  message += "<tr><td>Server:</td><td><input type='text' name='server' value='lot-xu.top'></td><tr>";
+  message += "</table><input type='submit' value='Submit'></form>";
   
   server.send(200, "text/html", message);
 }
@@ -229,37 +241,49 @@ void handleSaveConf()
   String apName;
   String apPassWord;
   String devName;
+  String serverName;
 
   String strSSID;
   String strPWD;
   String strDevName;
+  String strServer;
   
-  String message = "<h2>Step3:</h2>Save Config</br>";
+  String message = "<h2>Step3:</h2>Save Config</br> <table>";
   for (uint8_t i=0; i<server.args(); i++){
     if (server.argName(i) == "ssid")
     {
       apName = server.arg(i);
-      message += "SSID:";
+      message += "<tr><td>SSID:</td><td>";
       message += apName;
+      message += "</td></tr>";
     }
     if(server.argName(i) == "password")
     {
       apPassWord = server.arg(i);
-      message += "</br>PWD:";
+      message += "<tr><td>PWD:</td><td>";
       message += apPassWord;
+      message += "</td></tr>";
     }
     if(server.argName(i) == "clientname")
     {
       devName = server.arg(i);
-      message += "</br>Client:";
+      message += "<tr><td>Client:</td><td>";
       message += devName;
+      message += "</td></tr>";
+    }
+    if(server.argName(i) == "server")
+    {
+      serverName = server.arg(i);
+      message += "<tr><td>Server:</td><td>";
+      message += serverName;
+      message += "</td></tr>";
     }
   }
   
-  message +="</br>please reboot device!";
+  message +="</table></br>please reboot device!</br><a href=''>Reboot</a>";
   switchMode(MODE_STA);
-  writeSSID(apName,apPassWord,devName);
-  readSSID(strSSID,strPWD,strDevName);
+  writeSSID(apName,apPassWord,devName,serverName);
+  readSSID(strSSID,strPWD,strDevName,strServer);
   
   server.send(200, "text/html", message);
 
@@ -268,7 +292,7 @@ void handleSaveConf()
 void Conf_Ap_Server()
 {
     /* You can remove the password parameter if you want the AP to be open. */
-  WiFi.softAP(_SSID);
+  WiFi.softAP(AP_SSID);
 
   IPAddress myIP = WiFi.softAPIP();
   Serial.println(myIP);
@@ -280,14 +304,13 @@ void Conf_Ap_Server()
   server.begin();
 }
 
-
 void callback(char* topic, byte* payload, unsigned int length) {
   String strTopic = topic;
   Serial.println(strTopic);
-
-  int lastIndex = strTopic.lastIndexOf("/")+1;
-  Serial.println(strTopic.substring(lastIndex));
-  if (strTopic.substring(lastIndex) == "gpio0")
+  String strCmd = strTopic.substring(strTopic.lastIndexOf("/")+1);
+  
+  Serial.println(strCmd);
+  if (strCmd == "gpio0")
   {
       if ((char)payload[0] == '1')
       {
@@ -301,7 +324,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       }
 
   }
-  if (strTopic.substring(lastIndex) == "gpio2")
+  if (strCmd == "gpio2")
   {
       if ((char)payload[0] == '1')
       {
@@ -314,7 +337,42 @@ void callback(char* topic, byte* payload, unsigned int length) {
           Serial.println("GPIO2 0");
       }
   }
-  
+//发射NEC协议指令
+  if (strCmd == "IRNEC")
+  {
+    
+  }
+//发射Sony协议指令  
+  if (strCmd == "IRSony")
+  {
+    
+  }
+//发射Philips RC5协议指令
+  if (strCmd == "IRRC5")
+  {
+    
+  }
+//发射Philips RC6协议指令
+  if (strCmd == "IRRC6")
+  {
+    
+  }
+//发射Sharp协议指令
+  if (strCmd == "IRSharp")
+  {
+    
+  }
+//发射Panasonic协议指令
+  if (strCmd == "IRPanasonic")
+  {
+    
+  }
+//发射JVC协议指令
+  if (strCmd == "IRJVC")
+  {
+    
+  }
+    
 
 }
 
@@ -323,8 +381,10 @@ void config_mqtt()
   String strSSID;
   String strPWD;
   String strClientName;
+  String strServer;
+  
   int count = 0;
-  readSSID(strSSID,strPWD,strClientName);
+  readSSID(strSSID,strPWD,strClientName,strServer);
   outTopic += strClientName;
   inTopic += strClientName;
   if (strSSID != "TP-LINK_xuqi" || strPWD != "xgm10503")
@@ -357,7 +417,7 @@ void config_mqtt()
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  client.setServer(_MQTT_SERVER, 1883);
+  client.setServer(strServer.c_str(), 1883);
   client.setCallback(callback);
 }
 
@@ -394,11 +454,10 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   delay(5000);
-  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_BUILTIN, INPUT);
   pinMode(0, OUTPUT);
   
   g_mode = checkMode();
-  
   if (MODE_AP_INPUT == g_mode)
   {
       Scan_Ap_List();
@@ -410,8 +469,49 @@ void setup() {
     config_mqtt();
   } 
 }
+void heartbeat()
+{
+  static int value = 0;
+  static long lastMsg = 0;
+  long now = millis();
+  char outTopicBuff[40];
+  if (now - lastMsg > 5000) {
+    lastMsg = now;
+    value = (value+1)%10000;
+    snprintf (msg, 75, "live #%ld", value);
+    Serial.println(msg);
+
+    snprintf (outTopicBuff,40,"%s/heartbeat",outTopic.c_str());
+    Serial.println(outTopicBuff);
+    client.publish(outTopicBuff, msg);
+  }
+}
+
+void readSensor()
+{
+  static int value = 0;
+  static long lastMsg = 0;    
+  char msg[10];
+  static int SensorState = 0;
+  char outTopicBuff[40];
+  
+  long now = millis();
+ 
+  if (now - lastMsg > 2000) {
+    lastMsg = now;
 
 
+    int SensorValue = analogRead(LED_BUILTIN);
+  
+    snprintf (outTopicBuff,40,"%s/sensor",outTopic.c_str());
+    snprintf (msg, 10, "%d", SensorValue);
+    
+    Serial.print(outTopicBuff);
+    Serial.println(msg);
+    client.publish(outTopicBuff, msg);
+  } 
+  
+}
 void loop() {
   if (MODE_AP_INPUT == g_mode)
   { 
@@ -421,21 +521,15 @@ void loop() {
   {
       
       if (!client.connected()) {
-        digitalWrite(LED_BUILTIN, LOW);
+        //digitalWrite(LED_BUILTIN, LOW);
         reconnect();
-        digitalWrite(LED_BUILTIN, HIGH);
+        //digitalWrite(LED_BUILTIN, HIGH);
       }
       
       client.loop();
-    
-      long now = millis();
-  
-      if (now - lastMsg > 5000) {
-        lastMsg = now;
-        ++value;
-        snprintf (msg, 75, "live #%ld", value);
-        Serial.println(msg);
-        client.publish(outTopic.c_str(), msg);
-      }
+
+      heartbeat();
+      readSensor();
+      
   }
 }
