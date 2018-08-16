@@ -8,6 +8,7 @@
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 // define struct
 typedef struct Ap_Info
@@ -306,74 +307,29 @@ void Conf_Ap_Server()
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String strTopic = topic;
+  String strData = (char*)payload;
   Serial.println(strTopic);
-  String strCmd = strTopic.substring(strTopic.lastIndexOf("/")+1);
-  
-  Serial.println(strCmd);
-  if (strCmd == "gpio0")
-  {
-      if ((char)payload[0] == '1')
-      {
-          digitalWrite(0, HIGH);
-          Serial.println("GPIO0 1");
-      }
-      else
-      {
-          digitalWrite(0, LOW);
-          Serial.println("GPIO0 0");
-      }
+  Serial.println(strData);
 
-  }
-  if (strCmd == "gpio2")
+  if (strTopic == "in/from/set")
   {
-      if ((char)payload[0] == '1')
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject& root = jsonBuffer.parseObject(strData);
+      if (root["name"] == "flex_lamp")
       {
+        if (root["value"])
+        {
+          Serial.println("On");
           digitalWrite(LED_BUILTIN, HIGH);
-          Serial.println("GPIO2 1");
-      }
-      else
-      {
+        }
+        else
+        {
           digitalWrite(LED_BUILTIN, LOW);
-          Serial.println("GPIO2 0");
+          Serial.println("Off");
+        }
       }
+      
   }
-//发射NEC协议指令
-  if (strCmd == "IRNEC")
-  {
-    
-  }
-//发射Sony协议指令  
-  if (strCmd == "IRSony")
-  {
-    
-  }
-//发射Philips RC5协议指令
-  if (strCmd == "IRRC5")
-  {
-    
-  }
-//发射Philips RC6协议指令
-  if (strCmd == "IRRC6")
-  {
-    
-  }
-//发射Sharp协议指令
-  if (strCmd == "IRSharp")
-  {
-    
-  }
-//发射Panasonic协议指令
-  if (strCmd == "IRPanasonic")
-  {
-    
-  }
-//发射JVC协议指令
-  if (strCmd == "IRJVC")
-  {
-    
-  }
-    
-
 }
 
 void config_mqtt()
@@ -385,8 +341,7 @@ void config_mqtt()
   
   int count = 0;
   readSSID(strSSID,strPWD,strClientName,strServer);
-  outTopic += strClientName;
-  inTopic += strClientName;
+
   if (strSSID != "TP-LINK_xuqi" || strPWD != "xgm10503")
   {
     Serial.println("SSID not TP-LINK_xuqi / xgm10503");
@@ -435,10 +390,12 @@ void reconnect() {
       // ... and resubscribe
       delay(3000);
      
-     snprintf (subTopic, 40, "%s/#",inTopic.c_str());
+     snprintf (subTopic, 40, "%s#",inTopic.c_str());
      client.subscribe(subTopic);
+     
      Serial.print("SubScribe:");
      Serial.println(subTopic);
+
  
     } else {
       Serial.print("failed, rc=");
@@ -454,7 +411,7 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   delay(5000);
-  pinMode(LED_BUILTIN, INPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(0, OUTPUT);
   
   g_mode = checkMode();
@@ -528,8 +485,8 @@ void loop() {
       
       client.loop();
 
-      heartbeat();
-      readSensor();
+      //heartbeat();
+      //readSensor();
       
   }
 }
