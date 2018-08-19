@@ -10,6 +10,9 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
+#include <IRremoteESP8266.h>
+#include <IRsend.h>
+
 // define struct
 typedef struct Ap_Info
 {
@@ -36,6 +39,7 @@ enum MODE {
 #define _password  "xgm10503"
 
 AP_INFO ap_list[MAX_AP_NUM];
+uint16_t rawIRData[256] = {0}; 
 uint8_t g_ApListNum = 0;
 
 char msg[50];
@@ -48,6 +52,7 @@ ESP8266WebServer server(80);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+IRsend irsend(LED_BUILTIN);
 // EEPROM Data Operation
 
 byte checkMode()
@@ -409,10 +414,9 @@ void reconnect() {
 
 
 void setup() {
+  irsend.begin();
   Serial.begin(115200);
   delay(5000);
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(0, OUTPUT);
   
   g_mode = checkMode();
   if (MODE_AP_INPUT == g_mode)
