@@ -10,7 +10,7 @@ def AnalysisCsv(name):
     with open(name,"r") as f:
         reader = csv.DictReader(f)
         Time = [ [int(row[' CS'].strip()), int(float(row['Time[s]'])*1000*1000)] for row in reader]
-    
+
         strData = "uint32_t rawData[" + str(len(Time)) + "] = {"
 
         buffer = []
