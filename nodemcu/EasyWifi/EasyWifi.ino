@@ -14,148 +14,7 @@
 #include <IRsend.h>
 
 
-// pin define
-#define IR_LED 4 // ESP8266 GPIO pin to use. Recommended: 4 (D2).
 
-
-// const value
-#define MAP_AP_NUM 20 // max ap num for scan result list
-
-#define EEPROM_MODE_OFFSET 0
-#define EEPROM_SSID_OFFSET 1
-#define EEPROM_PASS_OFFSET 32
-#define EEPROM_DEVICE_NAME_OFFSET 64
-#define EEPROM_SERVICE_NAME_OFFSET 96
-
-#define AP_NAME "EasyWiFi"
-#define MQTT_SERVER_ADDR "lot-xu.top"
-#define MQTT_OUT_TOPIC "out/"
-#define MQTT_IN_TOPIC  "in/"
-
-// global value
-static String  g_strApList[MAP_AP_NUM]; // scan result,ap list
-static uint8_t g_u8ApNum = 0;           // ap list size
-
-// type define
-typedef struct EEPROM_Data
-{
-  char strSSID[30];
-  char strPassWord[30];
-  char strClientName[30];
-  char sttMqttServerAddress[30];
-}EEPROM_DATA;
-
-// function
-byte getCurrentMode();              // 0:app 1:station
-void changeCurrtnMode(byte mode);   // 0:app 1:station
-
-void writeEEPROM(EEPROM_DATA *data);
-void readEEPROM(EEPROM_DATA *data);
-
-void scanApList();
-
-void handleRoot();
-void handleNotFound();
-void handleStatinSetup();
-void handleSaveSetupInfo();
-
-void SteupApServer();
-void SteupMqttServer();
-
-
-/* 
- * Function
- */
-
-byte getCurrentMode()
-{
-   
-  EEPROM.begin(512);
-  byte value = EEPROM.read(EEPROM_MODE_OFFSET);
-  EEPROM.end();
-
-  Serial.print("getCurrentMode:");
-  Serial.println(value, DEC);
-
-  return value; 
-}
-
-void changeCurrtnMode(byte mode)
-{
-  Serial.print("changeCurrtnMode:");
-  Serial.println(mode, DEC);
-
-  EEPROM.begin(512);
-  EEPROM.write(EEPROM_MODE_OFFSET, mode);
-  EEPROM.commit();
-  delay(100);
-  EEPROM.end();
-}
-
-void writeEEPROM(EEPROM_DATA *data)
-{
-  if (NULL == data) return;
-
-  EEPROM.begin(512);
-
-  for (uint8_t i =0; i <30; i++)
-  {
-    EEPROM.write(EEPROM_SSID_OFFSET + i,data->strSSID[i];
-    EEPROM.write(EEPROM_PASS_OFFSET + i,data->strPassWord[i]);
-    EEPROM.write(EEPROM_DEVICE_NAME_OFFSET + i,data->strClientName[i]);
-    EEPROM.write(EEPROM_SERVICE_NAME_OFFSET + i,data->sttMqttServerAddress[i];
-  }
-
-  EEPROM.write(EEPROM_SSID_OFFSET + 30,'\0');
-  EEPROM.write(EEPROM_PASS_OFFSET +30,'\0');
-  EEPROM.write(EEPROM_DEVICE_NAME_OFFSET +30,'\0');
-  EEPROM.write(EEPROM_SERVICE_NAME_OFFSET +30,'\0');
-  EEPROM.commit();
-}
-
-void readEEPROM(EEPROM_DATA *data)
-{
-  if (NULL == data) return;
- 
-  EEPROM.begin(512);
-
-  for(uint8_t i = 0; i < 30; i++)
-  {
-    data->strSSID[i] = (char)EEPROM.read(EEPROM_SSID_OFFSET + i);
-    data->strPassWord[i]  = (char)EEPROM.read(EEPROM_PASS_OFFSET + i);
-    data->strClientName[i] = (char)EEPROM.read(EEPROM_DEVICE_NAME_OFFSET + i);
-    data->sttMqttServerAddress[i] = (char)EEPROM.read(EEPROM_SERVICE_NAME_OFFSET + i);
-  }
-
-  EEPROM.end();
-}
-
-void scanApList()
-{
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
-  
-  Serial.println("scan start");
-  
-  while(g_u8ApNum == 0)
-  { 
-     g_u8ApNum = WiFi.scanNetworks();
-     Serial.println("scan done");
-     delay(5000);
-  }
-  
-  if (g_u8ApNum >= MAX_AP_NUM) g_u8ApNum = MAX_AP_NUM;
-  
-  for (int i = 0; i < g_u8ApNum; ++i)
-  {
-    // Print SSID and RSSI for each network found
-    g_strApList[i] = WiFi.SSID(i);
-    delay(10);
-  }
-  
-  delay(100); 
-}
 // define struct
 typedef struct Ap_Info
 {
@@ -191,14 +50,13 @@ byte g_mode = 0;
 String outTopic = "out/";
 String inTopic = "in/";
 
-
-
-
-IRsend irsend(IR_LED);  // Set the GPIO to be used to sending the message.
-
 ESP8266WebServer server(80);
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+#define IR_LED 4 // ESP8266 GPIO pin to use. Recommended: 4 (D2).
+#define STATE_LED 5
+IRsend irsend(IR_LED);  // Set the GPIO to be used to sending the message.
 
 // EEPROM Data Operation
 
@@ -462,21 +320,22 @@ void callback(char* topic, byte* payload, unsigned int length) {
   String strData = (char*)payload;
   Serial.println(strTopic);
   Serial.println(strData);
-
+  
   if (strTopic == "in/from/set")
   {
       DynamicJsonBuffer jsonBuffer;
       JsonObject& root = jsonBuffer.parseObject(strData);
-      if (root["name"] == "flex_lamp")
+      if (root["name"] == "Samsung55")
       {
+        uint32_t tvRawData[205] = {4533,4532,557,1696,538,1714,532,1721,557,570,555,571,556,570,557,569,531,596,557,1695,555,1696,558,1696,555,572,532,594,557,569,557,569,533,594,556,570,531,1733,542,573,530,596,556,570,532,595,556,570,559,567,557,1695,557,570,532,1720,529,1723,554,1698,556,1695,556,1696,532,1721,558,47073,4535,4529,530,1723,557,1694,533,1721,530,596,556,570,528,598,557,569,556,570,532,1721,530,1721,557,1696,557,569,558,569,555,571,560,578,545,569,531,596,531,1721,556,570,532,595,555,570,558,569,556,570,557,569,556,1696,558,569,554,1697,532,1720,555,1697,559,1693,559,1694,531,1721,529,47097,4533,4527,533,1719,532,1720,555,1696,532,595,529,597,557,569,529,596,558,569,556,1695,530,1721,559,1693,558,568,530,597,531,595,556,570,530,595,555,571,557,1694,557,568,558,570,532,594,530,595,556,571,556,569,559,1693,555,571,542,1708,559,1694,557,1695,557,1695,557,1695,555,1697,556};
         if (root["value"])
         {
+          irsend.sendRaw2(tvRawData,205,38);
           Serial.println("On");
-          irsend.sendraw2();
         }
         else
         {
-          digitalWrite(LED_BUILTIN, LOW);
+          irsend.sendRaw2(tvRawData,205,38);
           Serial.println("Off");
         }
       }
@@ -561,10 +420,11 @@ void reconnect() {
 
 
 void setup() {
-  irsend.begin();
+  
   Serial.begin(115200);
   delay(5000);
-  
+  pinMode(STATE_LED, OUTPUT); 
+  digitalWrite(STATE_LED, HIGH); 
   g_mode = checkMode();
   if (MODE_AP_INPUT == g_mode)
   {
@@ -575,6 +435,8 @@ void setup() {
   else
   {
     config_mqtt();
+    irsend.begin();
+    
   } 
 }
 void heartbeat()
@@ -633,7 +495,7 @@ void loop() {
         reconnect();
         //digitalWrite(LED_BUILTIN, HIGH);
       }
-      
+      digitalWrite(STATE_LED, LOW); 
       client.loop();
 
       //heartbeat();

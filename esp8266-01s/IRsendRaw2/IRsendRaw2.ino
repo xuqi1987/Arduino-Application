@@ -34,7 +34,7 @@
 #include <IRremoteESP8266.h>
 #include <IRsend.h>
 
-#define IR_LED 2  // ESP8266 GPIO pin to use. Recommended: 4 (D2).
+#define IR_LED 4 // ESP8266 GPIO pin to use. Recommended: 4 (D2).
 
 IRsend irsend(IR_LED);  // Set the GPIO to be used to sending the message.
 
@@ -43,10 +43,11 @@ uint32_t rawData[141] = {8988,4493,643,1659,618,586,615,589,642,1659,642,561,642
 
 void setup() {
   irsend.begin();
-  Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
+  Serial.begin(115200);
 }
 
 void loop() {
+  Serial.println("Send");
   irsend.sendRaw2(rawData,141,38);
-  delay(8000);
+  delay(1000);
 }
