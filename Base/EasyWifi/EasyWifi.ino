@@ -15,6 +15,12 @@
 #include <IRremoteESP8266.h>
 #include <IRsend.h>
 
+#include <ESP8266HTTPClient.h>
+
+#include <Wire.h>  // Only needed for Arduino 1.6.5 and earlier
+#include "SSD1306Wire.h" // legacy include: `#include "SSD1306.h"`
+#include <qrcode.h>
+
 #ifdef ESP8266
 extern "C" {
 #include "user_interface.h"
@@ -23,8 +29,11 @@ extern "C" {
 
 
 // pin define
-#define IR_LED 4 // ESP8266 GPIO pin to use. Recommended: 4 (D2).
+#define IR_LED D3 // ESP8266 GPIO pin to use. Recommended: 4 (D2).
 
+// iic 
+#define LCD_SCL D1
+#define LCD_SDA D2
 
 // const value
 #define MAX_AP_NUM 20 // max ap num for scan result list
@@ -35,7 +44,7 @@ extern "C" {
 #define EEPROM_DEVICE_NAME_OFFSET 64
 #define EEPROM_SERVICE_NAME_OFFSET 96
 
-#define AP_NAME "EasyWiFi"
+#define AP_NAME "EasyWifi"
 #define MQTT_SERVER_ADDR "lot-xu.top"
 #define MQTT_OUT_TOPIC "out/"
 #define MQTT_IN_TOPIC  "in/"
@@ -44,11 +53,15 @@ extern "C" {
 static String  g_strApList[MAX_AP_NUM]; // scan result,ap list
 static uint8_t g_u8ApNum = 0;           // ap list size
 static byte g_bMode = 0;
+static String g_devName;
 
 ESP8266WebServer webServer(80);
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
-
+IRsend irsend(IR_LED);  // Set the GPIO to be used to sending the message.
+HTTPClient http;
+SSD1306Wire  display(0x3c, LCD_SDA, LCD_SCL);
+QRcode qrcode (&display);
 
 // type define
 typedef struct EEPROM_Data
@@ -79,8 +92,23 @@ void handleSaveSetupInfo();
 void mqttSetup();
 void mqttReconnect();
 void callback(char* topic, byte* payload, unsigned int length) ;
+
+void TvCallback(JsonObject& root);
+void TvBoxCallback(JsonObject& root);
+void TvHuashuCallback(JsonObject& root);
+void DisplayCallback(JsonObject& root);
+
+void changeConfCallback(JsonObject& root);
+
+void responseMqtt(String topic,JsonObject &root);
+
 void restartSystem();
 
+String httpGet(String url);
+
+void setupDisplay();
+void lcdDisplay(char *data);
+void lcdDisplayQRcode(char *data);
 /*
 void setupMqttServer();
 */
@@ -191,10 +219,13 @@ void startApServerSetup()
    /* You can remove the password parameter if you want the AP to be open. */
   WiFi.softAP(AP_NAME);
 
+  char strOut[30] = {0};
   IPAddress myIP = WiFi.softAPIP();
-  
+  snprintf(strOut,30,"Please connect %s",AP_NAME);
+  lcdDisplay(strOut);
   Serial.print("startApServerSetup IP:");
   Serial.println(myIP);
+  
 
   webServer.on("/", handleRoot);
   webServer.on("/station", handleStationSetup);
@@ -320,6 +351,7 @@ void mqttSetup(){
   Serial.print("password:");
   Serial.println(data.strPassWord);
 
+  g_devName = data.strClientName;
   WiFi.begin(data.strSSID, data.strPassWord);
   
   while (WiFi.status() != WL_CONNECTED) {
@@ -372,11 +404,7 @@ void mqttReconnect() {
     }
   }
 }
-void restartSystem()
-{
-  String message = "<h2>请重启！</h2>";
-  webServer.send(200, "text/html", message);
-}
+
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String strTopic = topic;
@@ -388,34 +416,149 @@ void callback(char* topic, byte* payload, unsigned int length) {
   {
       DynamicJsonBuffer jsonBuffer;
       JsonObject& root = jsonBuffer.parseObject(strData);
-      if (root["name"] == "Samsung55")
-      {
-        uint32_t tvRawData[205] = {4533,4532,557,1696,538,1714,532,1721,557,570,555,571,556,570,557,569,531,596,557,1695,555,1696,558,1696,555,572,532,594,557,569,557,569,533,594,556,570,531,1733,542,573,530,596,556,570,532,595,556,570,559,567,557,1695,557,570,532,1720,529,1723,554,1698,556,1695,556,1696,532,1721,558,47073,4535,4529,530,1723,557,1694,533,1721,530,596,556,570,528,598,557,569,556,570,532,1721,530,1721,557,1696,557,569,558,569,555,571,560,578,545,569,531,596,531,1721,556,570,532,595,555,570,558,569,556,570,557,569,556,1696,558,569,554,1697,532,1720,555,1697,559,1693,559,1694,531,1721,529,47097,4533,4527,533,1719,532,1720,555,1696,532,595,529,597,557,569,529,596,558,569,556,1695,530,1721,559,1693,558,568,530,597,531,595,556,570,530,595,555,571,557,1694,557,568,558,570,532,594,530,595,556,571,556,569,559,1693,555,571,542,1708,559,1694,557,1695,557,1695,557,1695,555,1697,556};
-        if (root["value"])
-        {
-          //irsend.sendRaw2(tvRawData,205,38);
-          Serial.println("On");
-        }
-        else
-        {
-          //irsend.sendRaw2(tvRawData,205,38);
-          Serial.println("Off");
-        }
+  
+      if (!root.success()) {
+          Serial.println("parseObject() failed");
+          return;
       }
-      
+
+      if (root["service_name"] == "IR")
+      {
+          httpGet("http://dev-xu.top:8000");
+      }
+
+      if (root["name"] == String(g_devName + "TV"))
+      {
+        TvCallback(root);
+      }
+
+      if (root["name"] == String(g_devName + "TVBox"))
+      {
+        TvBoxCallback(root);
+      }
+
+      if (root["name"] == String(g_devName + "HuashuBox"))
+      {
+        TvHuashuCallback(root);
+      }
+
+      if (root["name"] == String(g_devName + "Display"))
+      {
+        DisplayCallback(root);
+      }
+
+      if(root["name"] == String(g_devName))
+      {
+        changeConfCallback(root);
+      }
   }
+}
+
+
+void TvCallback(JsonObject& root)
+{
+  uint32_t tvRawData[205] = {4533,4532,557,1696,538,1714,532,1721,557,570,555,571,556,570,557,569,531,596,557,1695,555,1696,558,1696,555,572,532,594,557,569,557,569,533,594,556,570,531,1733,542,573,530,596,556,570,532,595,556,570,559,567,557,1695,557,570,532,1720,529,1723,554,1698,556,1695,556,1696,532,1721,558,47073,4535,4529,530,1723,557,1694,533,1721,530,596,556,570,528,598,557,569,556,570,532,1721,530,1721,557,1696,557,569,558,569,555,571,560,578,545,569,531,596,531,1721,556,570,532,595,555,570,558,569,556,570,557,569,556,1696,558,569,554,1697,532,1720,555,1697,559,1693,559,1694,531,1721,529,47097,4533,4527,533,1719,532,1720,555,1696,532,595,529,597,557,569,529,596,558,569,556,1695,530,1721,559,1693,558,568,530,597,531,595,556,570,530,595,555,571,557,1694,557,568,558,570,532,594,530,595,556,571,556,569,559,1693,555,571,542,1708,559,1694,557,1695,557,1695,557,1695,555,1697,556};
+  irsend.sendRaw2(tvRawData,205,38);
+}
+
+void TvBoxCallback(JsonObject& root)
+{
+  uint32_t rawData[77] = {9037,4497,586,1691,586,554,587,552,587,553,588,552,585,555,584,555,586,554,588,1688,589,552,586,1690,572,1705,588,1688,589,1688,560,1716,589,1689,587,553,586,554,585,1693,586,1690,561,1716,587,553,585,1692,589,1688,589,1689,586,1691,585,555,562,578,586,553,561,1716,588,552,561,575,585,39504,9037,2242,587,96269,9035,2245,559};
+  irsend.sendRaw2(rawData,77,38);
+}
+
+void TvHuashuCallback(JsonObject& root)
+{
+  uint32_t rawData[77] = {8997,4436,606,522,581,546,606,520,606,1642,607,520,606,520,606,1642,608,529,595,1642,604,1643,607,1649,595,524,606,1640,580,1668,606,1642,606,521,581,546,607,1641,605,520,605,1643,606,522,579,548,608,519,582,555,595,1651,596,522,605,1643,604,523,605,1650,597,1641,606,1642,582,1666,607,39567,8996,2206,605,95896,8969,2233,577};
+  irsend.sendRaw2(rawData,77,38);
+}
+
+void DisplayCallback(JsonObject& root)
+{
+  
+}
+
+void changeConfCallback(JsonObject& root)
+{
+  EEPROM_DATA data;
+  readEEPROM(&data);
+  strncpy(data.strSSID, root["ssid"],30);
+  strncpy(data.strPassWord , root["password"],30);
+  strncpy(data.strMqttServerAddress, root["mqtt"],30);
+  strncpy(data.strClientName , root["device"],30);
+  writeEEPROM(&data);
+  
+  mqttClient.publish(root["topic"],"{\"result\":\"OK\"}");
+}
+
+void responseMqtt(String topic,JsonObject& root)
+{ 
+    mqttClient.publish(topic.c_str(), "hello world");
+}
+
+void restartSystem()
+{
+  String message = "<h2>请重启！</h2>";
+  webServer.send(200, "text/html", message);
+}
+
+String httpGet(char* url)
+{
+  http.begin(url);
+  int httpCode = http.GET();
+  String payload;
+  // httpCode will be negative on error
+  if(httpCode > 0) {
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+      // file found at server
+      if(httpCode == 200) {
+          payload = http.getString();
+          Serial.println(payload);
+      }
+  } else {
+      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+  return payload;
+}
+
+void setupDisplay()
+{
+    // Initialising the UI will init the display too.
+  display.init();
+  qrcode.init();
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_16);
+}
+void lcdDisplay(char *data)
+{
+    display.clear();
+    display.setTextAlignment(TEXT_ALIGN_LEFT);
+    display.drawStringMaxWidth(0, 0, 128,data);
+    display.display();
+}
+
+void lcdDisplayQRcode(char *data)
+{
+  qrcode.create(data);
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+
+  setupDisplay();
   g_bMode = getCurrentMode();
   //g_bMode = 0;
   if (0 == g_bMode)
   {
+      lcdDisplay("Scan Ap");
       scanApList();
       delay(100);
       startApServerSetup();
+      lcdDisplayQRcode("http://192.168.4.1");
   }
   else
   {
@@ -434,6 +577,7 @@ void loop() {
   }
   else
   {
+    lcdDisplay("Wait Client Connected");
     if (!mqttClient.connected()) {
         mqttReconnect();
       }
