@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <title>Easy WiFi Setting</title>
+
+    <link rel="stylesheet" href="css/style.css" media="screen" type="text/css" />
+
+<SCRIPT LANGUAGE="JavaScript">
+function GetArgsFromHref(sHref, sArgName)
+{
+      var args    = sHref.split("?");
+      var retval = "";
+    
+      if(args[0] == sHref) /*参数为空*/
+      {
+           return retval; /*无需做任何处理*/
+      }  
+      var str = args[1];
+      args = str.split("&");
+      for(var i = 0; i < args.length; i ++)
+      {
+          str = args[i];
+          var arg = str.split("=");
+          if(arg.length <= 1) continue;
+          if(arg[0] == sArgName) retval = arg[1]; 
+      }
+      return retval;
+}
+
+function load_param()
+{
+	var url = window.location.href;
+	document.getElementById('wifi_name').value = GetArgsFromHref(url,'wifi_name');
+	document.getElementById('wifi_pass').value = GetArgsFromHref(url,'wifi_pass');
+	document.getElementById('dev_name').value = GetArgsFromHref(url,'dev_name');
+	document.getElementById('ap_name').value = GetArgsFromHref(url,'ap_name');
+	document.getElementById('server_name').value = GetArgsFromHref(url,'server_name');
+	document.getElementById('topic_prefix').value = GetArgsFromHref(url,'topic_prefix');
+	document.getElementById('service_name').value = GetArgsFromHref(url,'service_name');
+}
+
+function onChooseWifi()
+{
+	document.location ='/scanList.html';
+}
+
+</SCRIPT>
+
+</head>
+
+<body onload="load_param()">
+
+  <div class="container">  
+  <form id="contact" action="setting" method="post">
+    <h3>Easy WiFi 设置</h3>
+    <h4>请确认以下配置：</h4>
+
+    <fieldset>
+      <input id="wifi_name" placeholder="WiFi名字" type="text" name="wifi_name" tabindex="1"  required autofocus>
+      <input type="button" value="选择热点" onclick="onChooseWifi()">
+    </fieldset>
+    <fieldset>
+      <input id="wifi_pass" placeholder="WiFi密码" type="text" name="wifi_pass" tabindex="2" required>
+    </fieldset>
+        <fieldset>
+      <input id="ap_name" placeholder="热点名称" type="text" name="ap_name" tabindex="3" required>
+    </fieldset>
+        <fieldset>
+      <input id="dev_name" placeholder="设备名称" type="text" name="dev_name"  tabindex="4" required>
+    </fieldset>
+
+    <fieldset>
+      <input id="server_name" placeholder="服务器地址" type="text" name="server_name" tabindex="5" required>
+    </fieldset>
+    <fieldset>
+      <input id="topic_prefix" placeholder="主题前缀" type="text" name="topic_prefix" tabindex="6" required>
+    </fieldset>
+    <fieldset>
+		<select id="service_name" name="service_name">
+			<option value="Switch">开关</option>
+			<option value="Lightbulb">灯泡</option>
+			<option value="Ws2812b-Lightbulb">ws2812b彩灯</option>
+			<option value="DHT11">DHT11温湿度</option>
+			<option value="IRremote">红外</option>
+			<option value="OccupancySensor">人体传感器</option>
+			<option value="AirQualitySensor">空气质量传感器</option>
+			<option value="Fan">风扇</option>
+			<option value="HumiditySensor">湿度</option>
+			<option value="LightSensor">光照传感器</option>
+			<option value="TemperatureSensor">温度</option>
+			
+
+		</select>
+        </fieldset>
+    <fieldset>
+      <button name="submit" type="submit" id="contact-submit" data-submit="...Sending">修改</button>
+    </fieldset>
+  </form>
+
+</div>
+
+</body>
+
+</html>
